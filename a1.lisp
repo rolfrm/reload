@@ -1,0 +1,10 @@
+(print "ok..")
+(re.load "qload.lisp")
+(re.load "utils.lisp" t)
+(re.load "engine.lisp")
+(re.load "a2.lisp")
+;(re.load "live-code2.lisp")
+(re.load "game-object.lisp")
+(print "Heya")
+
+(print ".")
