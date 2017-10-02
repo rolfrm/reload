@@ -101,7 +101,7 @@
       (setf (slot-value adder 'sub-nodes) (list number1 number2))
       (setf (slot-value node 'sub-nodes) (list adder)))
     node))
-
+(comment
 (defun loaded(context node)
   (print context))
 
@@ -117,11 +117,9 @@
 		    (load-graph2 ctx2 node)))))
     (load-graph2 nil root-node)))
 
-
 (defun make-node (node-kind &rest args)
   ())
-
-
+)
 ;; this stuff. 
 (comment
   (defnode number
@@ -157,39 +155,115 @@
 	     
 (comment
  (defnode number
-     :var (num 0 'integer))
+     :var (num 0)
+     ;; update can be specified to push a result.
+     :update (() num)
+     :update ((x) (setf num x) num)
+     ) 
  (defnode twoop
-     :var (result1 0 'integer)
-     :var (result2 0 'integer)
-     :update (setf result1 (+ outputs))
-     :update (setf result2 (- outputs)))
- (defnode test2
-     (twoop
-      (number :var 2)
-      (number :var 3))))
+     " This node has two outputs: a + b and a - b "
+     (number :num (apply #'+ args))
+     (number :num (apply #'- args))
+     )
+ ;; since twoop has two outputs you have to refer to
+ ;; to the outputs by name
+ (defnode printer
+     :var (format "~a")
+     :update ((x) (format nil format x)))
+(defnode group)
+ 
+(defnode test2
+    :var (x 0)
+    :var (y 0)
+    (printer
+     :format "result 1: ~a")
+    (twoop :name twoop
+	   (number :var x)
+	   (number :var y))  
+    (printer
+     :format "result 2: ~a"
+     (bind twoop :result2) )
+    )
+ )
 
-(defun run-test2(x y)
-  (let ((a 0)
+(declaim (optimize (safety 0) (speed 3) (debug 0) (space 3)))
+(defstruct nodedef
+  (inputs nil :type list)
+  (outputs nil :type list))
+(defun run-test2()
+  (let (
+	;; define variables for each node
+	(a 0)
 	(b 0)
 	(result1 0)
-	(result2 0))
-    (declare (type fixnum a b result1 result2))
-    (labels ((update-result1 () (setf result1 (+ a b)))
-	     (update-result2 () (setf result2 (- a b)))
-	     (set-a (v) (unless (eq a v) (setf a v) (update-result1) (update-result2)))
-	     (set-b (v) (unless (eq b v) (setf b v) (update-result1) (update-result2)))
-	     )
-      
-      ;(update-result1)
-					;(update-result2)
-      (set-a x)
-      (set-b y)
-      (list result1 result2))))
-      
+	(result2 0)
+
+	;; defines outputs
+	(output1 nil)
+	(output2 nil)
+	)
+    (declare (type fixnum a b result1 result2)
+	     (type list output1 output2))
+    (labels (
+	     (print-result1 () (format t "result 1: ~a ~%" result1))
+	     (print-result2 () (format t "result 2: ~a ~%" result2))
+	     (update-result1 () (setf result1 (+ a b)) (print-result1) (loop for x in output1 do (funcall x result1)))
+	     (update-result2 () (setf result2 (- a b)) (print-result2) (loop for x in output2 do (funcall x result2)))
+
+	     ;; declare input methods
+	     (set-x (v) (declare (type fixnum v)) (set-a v))
+	     (set-y (v) (declare (type fixnum v)) (set-b v))
 	     
-	
-	      
-    
-	       
+	     (set-a (v) (declare (type fixnum v)) (unless (and nil (eq a v)) (setf a v) (update-result1) (update-result2)))
+	     (set-b (v) (declare (type fixnum v)) (unless (and nil (eq b v)) (setf b v) (update-result1) (update-result2)))
+	     (add-output1 (op) (setf output1 (cons op output1)))
+	     (add-output2 (op) (setf output2 (cons op output2)))
+	     )
+      (make-nodedef :inputs (list #'set-x #'set-y)
+		    :outputs (list #'add-output1 #'add-output2)))))
+;;lets wire n1s two outputs to the inputs of n2:
+(comment
+ (defnode test3
+     (group
+      (test2 :name n1)
+      (test2 :name n2 :x (node-ref n1 0) :y (node-ref n1 1))))
+
+ )
+
+(defun run-test3 ()
+  (let ((n1 (run-test2))
+	(n2 (run-test2)))
+    (funcall (first (nodedef-outputs n1)) (first (nodedef-inputs n2)))
+    (funcall (second (nodedef-outputs n1)) (second (nodedef-inputs n2)))
+    (make-nodedef :inputs (nodedef-inputs n1)
+		  :outputs (nodedef-outputs n2))))
+(defun concat-symbols(&rest syms)
+  (intern (apply #'concatenate 'string (mapcar #'symbol-name syms))))
+
+(defvar node-definitions (make-hash-table))
+
+(defmacro defnode(name &rest args)
+  (progn
+    (setf (gethash name node-definitions) args)
+    `(defun ,(concat-symbols 'make- name) ()
+       (let (
+	     ;; vars
+	     
+	     ;; local-vars
+	     
+	     ;; outputs
+	     
+	     )
+	 (labels
+	     (
+	      ;; set-vars
+
+	      ;; updaters
+
+	      ;;
+	      )
+	   (make-nodedef :inputs () :outputs ()))))))
+
+
 	       
 	      
